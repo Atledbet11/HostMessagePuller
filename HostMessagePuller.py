@@ -1,7 +1,7 @@
 import paramiko
 
 # list of strings to look for in lines indicating that the line may be ignored.
-ccl_blacklist = ['SC Message Type']
+ccl_blacklist = ['SC Message Type', 'ERR:']
 
 def main():
 
@@ -27,8 +27,8 @@ def main():
     # Here we close the ssh connection to the machine.
     client.close()
 
-    # Initialize the output variable used to hold important data.
-    output = ""
+    # Initialize the output variable(filteredCCLlog) used to hold important data.
+    filteredCCLlog = []
 
     # For each line found in the standard output,
     for line in lines:
@@ -37,19 +37,47 @@ def main():
         if not any(s in line for s in ccl_blacklist):
 
             # If none of the blacklisted strings are contained in the line, then add the line to the output variable.
-            output=output+line
+            filteredCCLlog.append(line)
 
-    # If the output is not empty
-    if output != "":
+    # For each element in the output list
+    for i in range(len(filteredCCLlog)):
 
-        # Print the outputted lines.
-        print(output)
+        # Holds the current lines value so we can make changes as necessary without affecting the line.
+        currentString = filteredCCLlog[i]
 
-    # IF the output is empty
-    else:
+        # Make sure the relevantInfo list is initialized and also empty.
+        relevantInfo = []
 
-        # Tell the user that we could not find any host messages in the log.
-        print("Failed to find host messages in the log.")
+        # Make sure the host variable is initialized empty.
+        host = ''
+
+        # If the element contains the start of a Response
+        if ' Response (' in currentString:
+
+            # Split the currentString to obtain the date of the transaction
+            currentString = currentString.split(' ', 1)
+
+            # Append the date to the relevantInfo Array
+            relevantInfo.append(currentString[0])
+
+            # Split the currentString's second half at ' - INF: ' to obtain the timestamp.
+            currentString = currentString[1].split(' - INF: ')
+
+            # Append the timestamp to the relevant info array.
+            relevantInfo.append(currentString[0])
+
+            # Split the currentString's second half at ' Response (' to obtain the host and message length.
+            currentString = currentString[1].split(' Response (')
+
+            # Append the host to the relevant info array.
+            relevantInfo.append(currentString[0])
+
+            # Append the message length to the relevant info array.
+            relevantInfo.append(''.join(filter(lambda x: x.isdigit(), currentString[1])))
+
+            # Print the relevant information.
+            print('Index: ' + str(i) + ' - ' + str(relevantInfo))
+
 
 if __name__ == "__main__":
     main()
