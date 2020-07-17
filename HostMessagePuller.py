@@ -1,7 +1,7 @@
 import paramiko
 
 # list of strings to look for in lines indicating that the line may be ignored.
-ccl_blacklist = ['SC Message Type', 'ERR:']
+ccl_blacklist = ['SC Message Type', 'ERR:', '(2)']
 
 def main():
 
@@ -51,8 +51,11 @@ def main():
         # Make sure the host variable is initialized empty.
         host = ''
 
+        # Looks for these to be in the current string.
+        ccl_whitelist = [' Response (', ' Request (']
+
         # If the element contains the start of a Response
-        if ' Response (' in currentString:
+        if any(s in currentString for s in ccl_whitelist):
 
             # Split the currentString to obtain the date of the transaction
             currentString = currentString.split(' ', 1)
@@ -66,8 +69,23 @@ def main():
             # Append the timestamp to the relevant info array.
             relevantInfo.append(currentString[0])
 
-            # Split the currentString's second half at ' Response (' to obtain the host and message length.
-            currentString = currentString[1].split(' Response (')
+            # If its a response message.
+            if ccl_whitelist[0] in currentString[1]:
+
+                # Split the string at ' Response ('
+                currentString = currentString[1].split(ccl_whitelist[0])
+
+                # Append 'Response' into the relevant information array.
+                relevantInfo.append('Response')
+
+            # If its a request message.
+            elif ccl_whitelist[1] in currentString[1]:
+
+                # Split the string at ' Request ('
+                currentString = currentString[1].split(ccl_whitelist[1])
+
+                # Append 'Request' to the relevant information array.
+                relevantInfo.append('Request')
 
             # Append the host to the relevant info array.
             relevantInfo.append(currentString[0])
