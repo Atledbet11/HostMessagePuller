@@ -1,8 +1,48 @@
 import paramiko
+import datetime
 
 # list of strings to look for in lines indicating that the line may be ignored.
 ccl_blacklist = ['SC Message Type', 'ERR:', '(2)']
 
+# This gets the timestamp of a provided date and time in epoch form
+def getTimestamp(date, time):
+
+    # Split the date at the -'s
+    sDate = date.split('-')
+
+    # Append "20" to the front of the year
+    sDate[0] = int("20" + sDate[0])
+
+    # Remove leading zero's from the month and day
+    sDate[1] = int(sDate[1].lstrip('0'))
+    sDate[2] = int(sDate[2].lstrip('0'))
+
+    # If a time is provided
+    if not time == '':
+
+        # Split the time at the (.)
+        temp = time.split('.')
+
+        # Add the hours Minutes and Seconds to the time variable
+        sTime = temp[0].split(':')
+
+        # Add the milliseconds to the time variable
+        sTime.append(temp[1])
+
+        # For each piece of the time variable.
+        for i in len(sTime):
+
+            # Remove the leading zeros
+            sTime[i] = int(sTime[i].lstrip('0'))
+
+    # If a time was not provided
+    else:
+        sTime = [0, 0, 0, 0]
+
+    # Use datetime to return the timestamp of the provided date
+    return datetime.datetime(sDate[0], sDate[1], sDate[2], sTime[0], sTime[1], sTime[2], sTime[3]).timestamp()
+
+# This tests to see if a connection can be made to the IP provided.
 def testIP(IP):
 
     # Opens a new paramiko client that we then use to ssh with later.
@@ -35,7 +75,7 @@ def testIP(IP):
         # Return false because we were unable to connect to the host machine
         return False
 
-
+# This pulls all of the lines from the CCL log.
 def pullMainCCLLog(IP):
 
     # Opens a new paramiko client that we then use to ssh with later.
@@ -63,9 +103,70 @@ def pullMainCCLLog(IP):
     # Return the gathered lines
     return lines
 
+# This will pull all of the lines for a specified day from the CCL log and its backups.
 def pullCCLlogDate(IP, date):
-    print("moo")
 
+    # Convert the date to a timestamp
+    tDate = getTimestamp(date, '')
+
+    # Initialize the Output list
+    outputLines = []
+
+    # Opens a new paramiko client that we then use to ssh with later.
+    client = paramiko.SSHClient()
+
+    # Tries to load any available system host keys.
+    client.load_system_host_keys()
+
+    # Overrides the host key if it is missing from the local system host keys.
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+    # Connects to the host machine
+    client.connect(str(IP), 22, 'root', 'fiscal')
+
+    # Executes commands across to the connected client.
+    # The commands executed navigate to the ccl directory and less the CCLlog.
+    stdin, stdout, stderr = client.exec_command('cd /home/ccl/ccl && less CCLlog.dat')
+
+    # This stores the standard output into the variable lines so that we can close the connection and keep the output.
+    lines = stdout.readlines()
+
+    # Get the timestamp for the date of the first line in the CCL.
+    cclOldestDate = getTimestamp(lines[0].split(' ')[0], '')
+
+    # If the date in the first line of the CCLlog is older than the requested date.
+    # We know that the date we are looking for is in the CCL log.
+    if cclOldestDate <= tDate:
+
+        # If the first line in the CCLlog contains the date
+        if cclOldestDate == tDate:
+
+            # Navigate to the logs directory and less the most recent CCLlog backup.
+            stdin, stdout, stderr = client.exec_command('cd /home/ccl/ccl/logs && less $(ls -Art *CCLlog.dat.* | tail -n 1)')
+
+            # Store the lines collected from the backup file in the front of the variable lines.
+            lines = stdout.readlines() + lines
+
+    # Otherwise the date we are looking for will be in the logs folder
+    else:
+        print("The date is not in the CCLlog.")
+
+    # For all the lines returned from the CCLlog.
+    for line in lines:
+
+        # If the line contains the date being searched for.
+        if date in line:
+
+            # Add it to the output list.
+            outputLines.append(line)
+
+    # Here we close the ssh connection to the machine.
+    client.close()
+
+    # Return the gathered lines
+    return outputLines
+
+# This filters the provided lines (From the CCL) and provides a dictionary containing any host message.
 def logFilter(lines):
 
     # Initialize the output variable(filteredCCLlog) used to hold important data.
@@ -171,13 +272,21 @@ def main():
 
     IP = "192.168.101.133"
 
+    date = "20-05-21"
+
+    print(str(getTimestamp(date, '')))
+
+    lines = pullCCLlogDate(IP, date)
+
+    test = logFilter(lines)
+
     if testIP(IP):
 
-        lines = pullMainCCLLog(IP)
+        #lines = pullMainCCLLog(IP)
 
-        test = logFilter(lines)
+       # test = logFilter(lines)
 
-        print(str(len(test)))
+       # print(str(len(test)))
 
         for key, value in test.items():
             print(str(key) + ' - ' + str(value))
