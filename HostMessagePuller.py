@@ -4,14 +4,24 @@ import datetime
 # list of strings to look for in lines indicating that the line may be ignored.
 ccl_blacklist = ['SC Message Type', 'ERR:', '(2)']
 
+def myTimestamp(e):
+    return e['Timestamp']
+
 # This gets the timestamp of a provided date and time in epoch form
 def getTimestamp(date, time):
 
     # Split the date at the -'s
     sDate = date.split('-')
 
-    # Append "20" to the front of the year
-    sDate[0] = int("20" + sDate[0])
+    # If the date provided only contains a 2 digit year.
+    if len(sDate[0]) == 2:
+
+        # Append "20" to the front of the year
+        sDate[0] = int("20" + sDate[0])
+
+    # Else convert the date to an int
+    else:
+        sDate[0] = int(sDate[0])
 
     # Remove leading zero's from the month and day
     sDate[1] = int(sDate[1].lstrip('0'))
@@ -142,14 +152,75 @@ def pullCCLlogDate(IP, date):
         if cclOldestDate == tDate:
 
             # Navigate to the logs directory and less the most recent CCLlog backup.
-            stdin, stdout, stderr = client.exec_command('cd /home/ccl/ccl/logs && less $(ls -Art *CCLlog.dat.* | tail -n 1)')
+            stdin, stdout, stderr = client.exec_command(
+                'cd /home/ccl/ccl/logs && less $(ls -Art *CCLlog.dat.* | tail -n 1)'
+            )
 
             # Store the lines collected from the backup file in the front of the variable lines.
             lines = stdout.readlines() + lines
 
     # Otherwise the date we are looking for will be in the logs folder
     else:
-        print("The date is not in the CCLlog.")
+
+        # Get the date, time, and filename of all the backup logs in the logs directory.
+        stdin, stdout, stderr = client.exec_command(
+            'cd /home/ccl/ccl/logs && find . -type f -print0 | xargs -0 stat -c "%y %n" | grep "CCL"'
+        )
+
+        # lines contains the date, time, and filename of all the backup logs.
+        lines = stdout.readlines()
+
+        # Declare list to hold all timestamps and filenames.
+        relevantList = []
+
+        # For each backup file
+        for line in lines:
+
+            # Strip out the date and time to obtain a timestamp for the file
+            tempList = line.split()
+
+            # Build the relevant list containing the file timestamp and name.
+            relevantList.append({'Timestamp': getTimestamp(tempList[0], ''), 'Filename': tempList[3]})
+
+        # Sort the relevant list based off of the timestamp.
+        relevantList.sort(key=myTimestamp)
+
+        # Clear the lines variable
+        lines = []
+
+        # For each item in the relevant list
+        for log in relevantList:
+
+            tStamp = log['Timestamp']
+
+            # If the timestamp for the log is less than the date we are looking for
+            if tStamp < tDate:
+
+                # Continue to the next log
+                continue
+
+            # Else if the timestamp for the log is equal to the date we are looking for
+            else:
+
+                # Pull the log
+                stdin, stdout, stderr = client.exec_command(
+                    'cd /home/ccl/ccl/logs && less ' + log['Filename']
+                )
+
+                # Extend the log to the lines variable
+                lines.extend(stdout.readlines())
+
+                # If the timestamp for the log is equal to the date we are looking for
+                if tStamp == tDate:
+
+                    # Continue to the next log - because the next log probably contains more of this date
+                    continue
+
+                # Elif the timestamp is greater to the date we are looking for
+                elif tStamp > tDate:
+
+                    # Break out of the loop, this should be all the data we need
+                    break
 
     # For all the lines returned from the CCLlog.
     for line in lines:
@@ -273,8 +344,6 @@ def main():
     IP = "192.168.101.133"
 
     date = "20-05-21"
-
-    print(str(getTimestamp(date, '')))
 
     lines = pullCCLlogDate(IP, date)
 
