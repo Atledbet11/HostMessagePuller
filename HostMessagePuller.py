@@ -4,9 +4,6 @@ import datetime
 # list of strings to look for in lines indicating that the line may be ignored.
 ccl_blacklist = ['SC Message Type', 'ERR:', '(2)']
 
-def myTimestamp(e):
-    return e['Timestamp']
-
 # This gets the timestamp of a provided date and time in epoch form
 def getTimestamp(date, time):
 
@@ -183,7 +180,7 @@ def pullCCLlogDate(IP, date):
             relevantList.append({'Timestamp': getTimestamp(tempList[0], ''), 'Filename': tempList[3]})
 
         # Sort the relevant list based off of the timestamp.
-        relevantList.sort(key=myTimestamp)
+        relevantList.sort(key=lambda x: x['Timestamp'])
 
         # Clear the lines variable
         lines = []
@@ -416,7 +413,9 @@ def main():
 
     if testIP(IP):
 
-        lines = getTransactionTime(IP, date, time)
+        lines = pullCCLlogDate(IP, date)
+
+        lines = logFilter(lines)
 
         for line in lines:
             print(str(line))
