@@ -23,9 +23,9 @@ def getTimestamp(date, time):
     else:
         sDate[0] = int(sDate[0])
 
-    # Remove leading zero's from the month and day
-    sDate[1] = int(sDate[1].lstrip('0'))
-    sDate[2] = int(sDate[2].lstrip('0'))
+    # Convert to Int, Removing leading zero's from the month and day
+    sDate[1] = int(sDate[1])
+    sDate[2] = int(sDate[2])
 
     # If a time is provided
     if not time == '':
@@ -40,10 +40,10 @@ def getTimestamp(date, time):
         sTime.append(temp[1])
 
         # For each piece of the time variable.
-        for i in len(sTime):
+        for i in range(len(sTime)):
 
-            # Remove the leading zeros
-            sTime[i] = int(sTime[i].lstrip('0'))
+            # Convert sTime to an integer, this also removes leading zeros.
+            sTime[i] = int(sTime[i])
 
     # If a time was not provided
     else:
@@ -244,7 +244,7 @@ def logFilter(lines):
     filteredCCLlog = []
 
     # Build a dictionary for holding all the messages produced by this tool.
-    outputDict = {}
+    outputList = []
 
     # For each line found in the standard output,
     for line in lines:
@@ -261,8 +261,8 @@ def logFilter(lines):
         # Holds the current lines value so we can make changes as necessary without affecting the line.
         currentString = filteredCCLlog[i]
 
-        # Make sure the relevantInfo list is initialized and also empty.
-        relevantInfo = []
+        # Make sure the relevantInfo dictionary is initialized and also empty.
+        relevantInfo = {}
 
         # Make sure the host variable is initialized empty.
         host = ''
@@ -277,13 +277,13 @@ def logFilter(lines):
             currentString = currentString.split(' ', 1)
 
             # Append the date to the relevantInfo Array
-            relevantInfo.append(currentString[0])
+            relevantInfo['Date'] = currentString[0]
 
             # Split the currentString's second half at ' - INF: ' to obtain the timestamp.
             currentString = currentString[1].split(' - INF: ')
 
             # Append the timestamp to the relevant info array.
-            relevantInfo.append(currentString[0])
+            relevantInfo['Time'] = currentString[0]
 
             # If its a response message.
             if ccl_whitelist[0] in currentString[1]:
@@ -292,7 +292,7 @@ def logFilter(lines):
                 currentString = currentString[1].split(ccl_whitelist[0])
 
                 # Append 'Response' into the relevant information array.
-                relevantInfo.append('Response')
+                relevantInfo['MessageType'] = 'Response'
 
             # If its a request message.
             elif ccl_whitelist[1] in currentString[1]:
@@ -301,13 +301,13 @@ def logFilter(lines):
                 currentString = currentString[1].split(ccl_whitelist[1])
 
                 # Append 'Request' to the relevant information array.
-                relevantInfo.append('Request')
+                relevantInfo['MessageType'] = 'Request'
 
-            # Append the host to the relevant info array.
-            relevantInfo.append(currentString[0])
+            # Append the host to the relevant info dictionary.
+            relevantInfo['Host'] = currentString[0]
 
-            # Append the message length to the relevant info array.
-            relevantInfo.append(''.join(filter(lambda x: x.isdigit(), currentString[1])))
+            # Append the message length to the relevant info dictionary.
+            relevantInfo['Length'] = ''.join(filter(lambda x: x.isdigit(), currentString[1]))
 
             # Initialize msgArray and make sure it is empty.
             msgArray = []
@@ -316,7 +316,7 @@ def logFilter(lines):
             count = 1
 
             # While message list length is less than the specified message length
-            while (len(msgArray) < int(relevantInfo[4])):
+            while (len(msgArray) < int(relevantInfo['Length'])):
 
                 # Split the next index at 'INF: ' on the line starting at the index(i) plus the loop count
                 message = filteredCCLlog[i + count].split('INF: ')
@@ -330,36 +330,97 @@ def logFilter(lines):
                 # Increment the counter - this is used to choose the line in the CCL log being operated on.
                 count += 1
 
-            # Get the length of the outputDict for use as the key/index
-            outputLen = len(outputDict)
-
             # Create an entry in the dictionary for the new entry
-            outputDict[outputLen] = [relevantInfo, msgArray]
+            relevantInfo['Message'] = msgArray
+
+            # Append the information to the output list
+            outputList.append(relevantInfo)
 
     # Return the output dictionary
-    return outputDict
+    return outputList
+
+# This pulls the nearest transaction to the date and time provided.
+def getTransactionTime(IP, date, time):
+
+    tTime = getTimestamp(date, time)
+
+    # Grab the transactions for the specified Date.
+    lines = pullCCLlogDate(IP, date)
+
+    lines = logFilter(lines)
+
+    # Temp list of lines to be sifted through
+    tempLines = []
+
+    # Define outputLines variable
+    outputLines = []
+
+    # For each line returned for the date requested
+    for line in lines:
+
+        # Fetch the timestamp for the line, and calculate the time difference from the desired transaction.
+        timeDiff = getTimestamp(line['Date'], line['Time']) - tTime
+
+        # Build an array containing the time Difference and the line for the transaction
+        tempLines.append({'TimeDifference': timeDiff, 'Line': line})
+
+    # Finds the closest line to the provided date, by locating the lowest value for timeDifference in the list.
+    closestLine = min(tempLines, key=lambda x: abs(x['TimeDifference']))
+
+    # If the closest line in the list is a request, grab the next line (Should be a response) too
+    if closestLine['Line']['MessageType'] == 'Request':
+
+        # Get the next line after the closest Line.
+        nextLine = tempLines[tempLines.index(closestLine) + 1]['Line']
+
+        # If the next line contains a response
+        if nextLine['MessageType'] == 'Response':
+
+            # Add the request and response to the output list.
+            outputLines = [closestLine['Line'], nextLine]
+
+        # Else the response could not be found
+        else:
+            # Set the output list equal to the request that was found
+            outputLines = [closestLine['Line']]
+
+    # Else if the closest line was a response
+    elif closestLine['Line']['MessageType'] == 'Response':
+
+        # Get the previous line before the closest line.
+        previousLine = tempLines[tempLines.index(closestLine) - 1]['Line']
+
+        # If the previous line was a request, Which should usually be the case.
+        if previousLine['MessageType'] == "Request":
+
+            # The outputlines should contain the request and the response.
+            outputLines = [previousLine, closestLine['Line']]
+
+        # Else the matching request could not be found, so just return the response message.
+        else:
+
+             # Set the Output list equal to the response that was found.
+            outputLines = [closestLine['Line']]
+
+    # Return the best fitting lines we located for this transaction.
+    return outputLines
+
 
 def main():
 
     IP = "192.168.101.133"
 
-    date = "20-05-21"
+    date = "20-07-16"
 
-    lines = pullCCLlogDate(IP, date)
-
-    test = logFilter(lines)
+    time = "14:34:15.250"
 
     if testIP(IP):
 
-        #lines = pullMainCCLLog(IP)
+        lines = getTransactionTime(IP, date, time)
 
-       # test = logFilter(lines)
+        for line in lines:
+            print(str(line))
 
-       # print(str(len(test)))
-
-        for key, value in test.items():
-            print(str(key) + ' - ' + str(value))
-            print(str(key) + ' - ' + str(value[0][0]) + ' ' + str(value[0][1]))
     else:
         print("Failed to connect to the IP: " + str(IP))
 
