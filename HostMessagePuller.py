@@ -413,9 +413,7 @@ def main():
 
     if testIP(IP):
 
-        lines = pullCCLlogDate(IP, date)
-
-        lines = logFilter(lines)
+        lines = getTransactionTime(IP, date, time)
 
         for line in lines:
             print(str(line))
