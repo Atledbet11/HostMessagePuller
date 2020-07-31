@@ -2,7 +2,7 @@ import paramiko
 import datetime
 
 # list of strings to look for in lines indicating that the line may be ignored.
-ccl_blacklist = ['SC Message Type', 'ERR:', '(2)']
+ccl_blacklist = ['SC Message Type', 'ERR:', '(2)', 'CCLMain']
 
 # This gets the timestamp of a provided date and time in epoch form
 def getTimestamp(date, time):
@@ -65,7 +65,7 @@ def testIP(IP):
     try:
 
         # Connects to the host machine
-        client.connect(str(IP), 22, 'root', 'fiscal')
+        client.connect(str(IP), 22, 'ccl', 'fiscal')
 
         # Closes the client
         client.close()
@@ -95,7 +95,7 @@ def pullMainCCLLog(IP):
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
     # Connects to the host machine
-    client.connect(str(IP), 22, 'root', 'fiscal')
+    client.connect(str(IP), 22, 'ccl', 'fiscal')
 
     # Executes commands across to the connected client.
     # The commands executed navigate to the ccl directory and less the CCLlog.
@@ -129,7 +129,7 @@ def pullCCLlogDate(IP, date):
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
     # Connects to the host machine
-    client.connect(str(IP), 22, 'root', 'fiscal')
+    client.connect(str(IP), 22, 'ccl', 'fiscal')
 
     # Executes commands across to the connected client.
     # The commands executed navigate to the ccl directory and less the CCLlog.
@@ -265,75 +265,75 @@ def logFilter(lines):
         host = ''
 
         # Looks for these to be in the current string.
-        ccl_whitelist = [' Response (', ' Request (']
+        ccl_whitelist = [ ' Request (', ' request (', ' Response (', ' response (']
 
-        # If the element contains the start of a Response
-        if any(s in currentString for s in ccl_whitelist):
+        # For each item in the ccl whitelist
+        for item in ccl_whitelist:
 
-            # Split the currentString to obtain the date of the transaction
-            currentString = currentString.split(' ', 1)
+            # If the current item is in the string
+            if item in currentString:
 
-            # Append the date to the relevantInfo Array
-            relevantInfo['Date'] = currentString[0]
+                # Split the currentString to obtain the date of the transaction
+                currentString = currentString.split(' ', 1)
 
-            # Split the currentString's second half at ' - INF: ' to obtain the timestamp.
-            currentString = currentString[1].split(' - INF: ')
+                # Append the date to the relevantInfo Array
+                relevantInfo['Date'] = currentString[0]
 
-            # Append the timestamp to the relevant info array.
-            relevantInfo['Time'] = currentString[0]
+                # Split the currentString's second half at ' - INF: ' to obtain the timestamp.
+                currentString = currentString[1].split(' - INF: ')
 
-            # If its a response message.
-            if ccl_whitelist[0] in currentString[1]:
+                # Append the timestamp to the relevant info array.
+                relevantInfo['Time'] = currentString[0]
 
-                # Split the string at ' Response ('
-                currentString = currentString[1].split(ccl_whitelist[0])
+                # Split the string at the whitelist item
+                currentString = currentString[1].split(item)
 
-                # Append 'Response' into the relevant information array.
-                relevantInfo['MessageType'] = 'Response'
+                # If the index of the item is less than two, then this is a Request.
+                if ccl_whitelist.index(item) < 2:
 
-            # If its a request message.
-            elif ccl_whitelist[1] in currentString[1]:
+                    # Append 'Response' into the relevant information array.
+                    relevantInfo['MessageType'] = 'Request'
 
-                # Split the string at ' Request ('
-                currentString = currentString[1].split(ccl_whitelist[1])
+                # Otherwise the item is a response
+                else:
 
-                # Append 'Request' to the relevant information array.
-                relevantInfo['MessageType'] = 'Request'
+                    # Append 'Request' to the relevant information array.
+                    relevantInfo['MessageType'] = 'Response'
 
-            # Append the host to the relevant info dictionary.
-            relevantInfo['Host'] = currentString[0]
+                # Append the host to the relevant info dictionary.
+                relevantInfo['Host'] = currentString[0]
 
-            # Append the message length to the relevant info dictionary.
-            relevantInfo['Length'] = ''.join(filter(lambda x: x.isdigit(), currentString[1]))
+                # Append the message length to the relevant info dictionary.
+                relevantInfo['Length'] = ''.join(filter(lambda x: x.isdigit(), currentString[1]))
 
-            # Initialize msgArray and make sure it is empty.
-            msgArray = []
+                # Initialize msgArray and make sure it is empty.
+                msgArray = []
 
-            # Initialize count for the for loop at 1
-            count = 1
+                # Initialize count for the for loop at 1
+                count = 1
 
-            # While message list length is less than the specified message length
-            while (len(msgArray) < int(relevantInfo['Length'])):
+                # While message list length is less than the specified message length
+                while (len(msgArray) < int(relevantInfo['Length'])):
 
-                # Split the next index at 'INF: ' on the line starting at the index(i) plus the loop count
-                message = filteredCCLlog[i + count].split('INF: ')
+                    # Split the next index at 'INF: ' on the line starting at the index(i) plus the loop count
+                    message = filteredCCLlog[i + count].split('INF: ')
 
-                # Split the message at the space characters and add them to the array.
-                message = message[1].split()
+                    # Split the message at the space characters and add them to the array.
+                    message = message[1].split()
 
-                # Add all of the message bytes using '.extend'
-                msgArray.extend(message)
+                    # Add all of the message bytes using '.extend'
+                    msgArray.extend(message)
 
-                # Increment the counter - this is used to choose the line in the CCL log being operated on.
-                count += 1
+                    # Increment the counter - this is used to choose the line in the CCL log being operated on.
+                    count += 1
 
-            # Create an entry in the dictionary for the new entry
-            relevantInfo['Message'] = msgArray
+                # Create an entry in the dictionary for the new entry
+                relevantInfo['Message'] = msgArray
 
-            # Append the information to the output list
-            outputList.append(relevantInfo)
+                # Append the information to the output list
+                outputList.append(relevantInfo)
 
-    # Return the output dictionary
+    # Return the output list
     return outputList
 
 # This pulls the nearest transaction to the date and time provided.
@@ -344,7 +344,14 @@ def getTransactionTime(IP, date, time):
     # Grab the transactions for the specified Date.
     lines = pullCCLlogDate(IP, date)
 
+    # Filter out the lines into a usable list.
     lines = logFilter(lines)
+
+    # If there were no transactions found for that day
+    if len(lines) == 0:
+
+        # Tell the user that we could not find any results for that day.
+        print("Could not find a transaction for the day requested")
 
     # Temp list of lines to be sifted through
     tempLines = []
@@ -367,36 +374,58 @@ def getTransactionTime(IP, date, time):
     # If the closest line in the list is a request, grab the next line (Should be a response) too
     if closestLine['Line']['MessageType'] == 'Request':
 
-        # Get the next line after the closest Line.
-        nextLine = tempLines[tempLines.index(closestLine) + 1]['Line']
+        # Get the next index of the array.
+        nextIndex = tempLines.index(closestLine) + 1
 
-        # If the next line contains a response
-        if nextLine['MessageType'] == 'Response':
+        # If the next index is in the array.
+        if nextIndex < len(tempLines):
 
-            # Add the request and response to the output list.
-            outputLines = [closestLine['Line'], nextLine]
+            # Get the next line after the closest Line.
+            nextLine = tempLines[nextIndex]['Line']
 
-        # Else the response could not be found
+            # If the next line contains a response
+            if nextLine['MessageType'] == 'Response':
+
+                # Add the request and response to the output list.
+                outputLines = [closestLine['Line'], nextLine]
+
+            # Else the response could not be found
+            else:
+
+                # Set the output list equal to the request that was found
+                outputLines = [closestLine['Line']]
+
         else:
-            # Set the output list equal to the request that was found
+
+            # Set the output list equal to the Line that was found
             outputLines = [closestLine['Line']]
 
     # Else if the closest line was a response
     elif closestLine['Line']['MessageType'] == 'Response':
 
-        # Get the previous line before the closest line.
-        previousLine = tempLines[tempLines.index(closestLine) - 1]['Line']
+        # Get the index of the previous line
+        previousIndex = tempLines.index(closestLine) - 1
 
-        # If the previous line was a request, Which should usually be the case.
-        if previousLine['MessageType'] == "Request":
+        if not previousIndex < 0:
 
-            # The outputlines should contain the request and the response.
-            outputLines = [previousLine, closestLine['Line']]
+            # Get the previous line.
+            previousLine = tempLines[previousIndex]['Line']
 
-        # Else the matching request could not be found, so just return the response message.
+            # If the previous line was a request, Which should usually be the case.
+            if previousLine['MessageType'] == "Request":
+
+                # The outputlines should contain the request and the response.
+                outputLines = [previousLine, closestLine['Line']]
+
+            # Else the matching request could not be found, so just return the response message.
+            else:
+
+                # Set the Output list equal to the response that was found.
+                outputLines = [closestLine['Line']]
+
         else:
 
-             # Set the Output list equal to the response that was found.
+            # Set the Output list equal to the response that was found.
             outputLines = [closestLine['Line']]
 
     # Return the best fitting lines we located for this transaction.
@@ -405,7 +434,7 @@ def getTransactionTime(IP, date, time):
 
 def main():
 
-    IP = "192.168.101.133"
+    IP = "192.168.1.43"
 
     date = "20-07-16"
 
