@@ -1,5 +1,6 @@
 import paramiko
 import datetime
+from z01parser import *
 
 # list of strings to look for in lines indicating that the line may be ignored.
 ccl_blacklist = ['SC Message Type', 'ERR:', '(2)', 'CCLMain']
@@ -433,19 +434,27 @@ def getTransactionTime(IP, date, time):
 
 
 def main():
-
+    # This is the IP that the script will pull transactions from
     IP = "192.168.1.43"
 
+    # This is the date that the script will pull
     date = "20-07-16"
 
+    # This is the time the script hopes to find a related transaction to.
+    # It simply pulls the closest transaction to this time
     time = "14:34:15.250"
 
+    # If
     if testIP(IP):
 
         lines = getTransactionTime(IP, date, time)
 
         for line in lines:
-            print(str(line))
+            #print(str(line))
+
+            if line['Host'] == "Z01":
+                if line['MessageType'] == "Request":
+                    request_parser(dict_maker(map_selection_func(line['Message'])), line['Message'])
 
     else:
         print("Failed to connect to the IP: " + str(IP))
