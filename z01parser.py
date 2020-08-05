@@ -800,7 +800,7 @@ z01_Request_Field = {
     },
     "D413": {
         "Standard_Map_Dict": Standard_Map_Dict,
-        "KSN": 16,
+        "KSN": 20,
         "Pin_Block": 16,
         "Cash_Back_Amount": 6,
         "Convenience_Fee_Amount": 6,
@@ -1118,41 +1118,42 @@ z01_Request_Field = {
     },
 }
 
+
 #####################
 
-def user_input_formatting(user_Input_List):
-    # Entry point, takes multi-line input that needs formatting
-    print("Enter string, press 'ctrl+d' when done to input")
-    user_Input = str(sys.stdin.readlines())  # Reads multi-line string input and assigns to variable
-
-    # Turns input into list of strings
-    user_Input = user_Input.split(",")
-    for string in user_Input:
-        string = string.partition("INF:")[2]
-        string = string.partition("\\n")[0]
-        string = string.replace("  ", " ")
-        string = string.replace("   ", "")
-        string = string.replace("']", "")
-        temp_list = string.split(" ")
-        for i in temp_list:
-            user_Input_List.append(i)
-
-    print(user_Input_List)
-
-    return user_Input_List
+# def user_input_formatting(input_as_list):
+#     # Entry point, takes multi-line input that needs formatting
+#     print("Enter string, press 'ctrl+d' when done to input")
+#     user_Input = str(sys.stdin.readlines())  # Reads multi-line string input and assigns to variable
+#
+#     # Turns input into list of strings
+#     user_Input = user_Input.split(",")
+#     for string in user_Input:
+#         string = string.partition("INF:")[2]
+#         string = string.partition("\\n")[0]
+#         string = string.replace("  ", " ")
+#         string = string.replace("   ", "")
+#         string = string.replace("']", "")
+#         temp_list = string.split(" ")
+#         for i in temp_list:
+#             input_as_list.append(i)
+#
+#     print(input_as_list)
+#
+#     return input_as_list
 
 
 ######################
 
 
-def map_selection_func(user_input):
+def map_selection_func(input_as_list):
     # Pulls the map type needed from the fully formatted list of single byte strings
-    print(user_input)
-    request_format_code = "".join(user_input[10:12])
-    transaction_type = "".join(user_input[12:14])
-    map_selection = request_format_code + transaction_type
-    print(map_selection)
-    return map_selection
+    print("Input was: " + str(input_as_list))
+    request_format_code = "".join(input_as_list[10:12])
+    transaction_type = "".join(input_as_list[12:14])
+    z01_request_type = request_format_code + transaction_type
+    print("Request type is: " + str(z01_request_type))
+    return z01_request_type
 
 
 ########################
@@ -1167,62 +1168,75 @@ def dict_maker(z01_request_type):
                 created_dictionary.update({key_2: value_2})
             continue
         created_dictionary.update({key: value})
-    # pprint.pprint(created_dictionary, sort_dicts=False)
     return created_dictionary
-
-
-# returns a map that can be iterated over to actually parse out the map data
 
 
 ########################
 
-# Pass map_selection to auto determine which map type to parse
 # Sorts data by Key:Value in specified sub-dictionary from the use_map and cuts out string values by Value in dict
-def request_parser(created_dict, user_Input_List):
-    #pprint.pprint(created_dict, sort_dicts=False)
-    print("".join(user_Input_List))
+# Pass input as a list of single 'byte' values
+def request_parser(created_dict, input_as_list):
+    output_dict = {}
 
-    for x, y in created_dict.items():
+    for key, value in created_dict.items():
         has_field_separator = ["Account_Number", "AVS_Information", ]
         field_separators = ["1C", "1E", "="]
         card_use_type_values = ["C", "B", "F"]
         try:
-            if x in has_field_separator:  # This catches the special dict entries that end in a field sep
-                for char in user_Input_List:  # Will find any value of 0 that isn't in the above loop
+            if key in has_field_separator:  # This catches the special dict entries that end in a field sep
+                for char in input_as_list:  # Will find any value of 0 that isn't in the above loop
                     if char in field_separators:
-                        end_index = (user_Input_List.index(char))
-                        print(x + ": " + "".join(user_Input_List[:end_index]))
-                        user_Input_List = user_Input_List[end_index:]
+                        end_index = (input_as_list.index(char))
+                        #print(key + ": " + "".join(input_as_list[:end_index]))
+                        output_dict.update({key : "".join(input_as_list[:end_index])})
+                        input_as_list = input_as_list[end_index:]
                         break  # do not continue to loop through index looking for characters
-            elif x == "Tag_Data":
-                end_index = user_Input_List.index("1E")
-                emv_tags = ("".join(user_Input_List[:end_index]))
-                print(x + ": " + emv_tags)
-                user_Input_List = user_Input_List[end_index:]
-            elif x == "Client_Discretionary_Data":
-                end_index = user_Input_List.index("=")
-                discretionary_data = ("".join(user_Input_List[:end_index]))
-                print(x + ": " + discretionary_data)
-                user_Input_List = user_Input_List[end_index:]
+            elif key == "Tag_Data":
+                end_index = input_as_list.index("1E")
+                emv_tags = ("".join(input_as_list[:end_index]))
+                #print(key + ": " + emv_tags)
+                output_dict.update({key : emv_tags})
+                input_as_list = input_as_list[end_index:]
+            elif key == "Client_Discretionary_Data":
+                end_index = input_as_list.index("=")
+                discretionary_data = ("".join(input_as_list[:end_index]))
+                #print(key + ": " + discretionary_data)
+                output_dict.update({key : discretionary_data})
+                input_as_list = input_as_list[end_index:]
 
             else:
-                if y == 0:  # This is a bit sloppy. The only thing this should find is Disc_Data_Track2 but,
-                    for char in user_Input_List:  # Will find any value of 0 that isn't in the above loop
+                if value == 0:  # This is a bit sloppy. The only thing this should find is Disc_Data_Track2 but,
+                    for char in input_as_list:  # Will find any value of 0 that isn't in the above loop
                         if char in card_use_type_values:
-                            end_index = (user_Input_List.index(char))
-                            print(x + ": " + "".join(user_Input_List[:end_index]))
-                            user_Input_List = user_Input_List[end_index:]
+                            end_index = (input_as_list.index(char))
+                            #print(key + ": " + "".join(input_as_list[:end_index]))
+                            output_dict.update({key : "".join(input_as_list[:end_index])})
+                            input_as_list = input_as_list[end_index:]
                             break  # do not continue to loop through index looking for characters
                 else:  # if not a special dict value
                     end_index = 0
-                    end_index += y
-                    print(x + ": " + "".join(user_Input_List[:end_index]))
-                    user_Input_List = user_Input_List[end_index:]
+                    end_index += value
+                    #print(key + ": " + "".join(input_as_list[:end_index]))
+                    output_dict.update({key : "".join(input_as_list[:end_index])})
+                    input_as_list = input_as_list[end_index:]
         except ValueError:
             pass
+    pprint.pprint(output_dict, sort_dicts=False)
+    return output_dict
 
+####################
+
+def normalized_dict(output_dict):
+    # Takes out important KVPs from output dict to be normalized/Stored for validations
+    important_dict = {}
+    normalized_values = ["Company_Identifier", "Response_Format_Code", "Request_Format_Code", "Transaction_Type", "Sequence_Number", "Account_Number", "Total_Amount", "Tag_Data"]
+    for key, value in output_dict.items():
+        if key in normalized_values:
+            important_dict.update({key : value})
+
+    pprint.pprint(important_dict, sort_dicts=False)
 
 ####################
 # MAIN
-#user_input_formatting()
-#request_parser(dict_maker(map_selection_func(user_input_formatting())))
+# user_input_formatting()
+# request_parser(dict_maker(map_selection_func(user_input_formatting())))
