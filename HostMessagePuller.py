@@ -1,6 +1,7 @@
 import paramiko
 import datetime
 from z01parser import *
+from RBSparser import *
 
 # list of strings to look for in lines indicating that the line may be ignored.
 ccl_blacklist = ['SC Message Type', 'ERR:', '(2)', 'CCLMain']
@@ -266,7 +267,7 @@ def logFilter(lines):
         host = ''
 
         # Looks for these to be in the current string.
-        ccl_whitelist = [ ' Request (', ' request (', ' Response (', ' response (']
+        ccl_whitelist = [' Request (', ' request (', ' Response (', ' response (']
 
         # For each item in the ccl whitelist
         for item in ccl_whitelist:

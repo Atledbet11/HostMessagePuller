@@ -1,5 +1,4 @@
 import sys
-import pprint
 
 Standard_Map_Dict = {
     # 1001
@@ -1220,6 +1219,38 @@ def request_parser(created_dict, user_Input_List):
                     user_Input_List = user_Input_List[end_index:]
         except ValueError:
             pass
+
+def exampleOutputBuilder(messageDict):
+
+    # Initialize the output Dict.
+    outputDict = {
+        'KeyInfo': {
+            'SequenceNumber': '',
+            'MessageType': '',
+            'ApprovalNumber': '',
+            'CardPan': '',
+            'Date': '',
+            'Time': '',
+            'TagData': '',
+        }
+        , 'FullMessage': messageDict
+    }
+
+    # An example as to how to set values in the KeyInfo section.
+    outputDict['KeyInfo']['Date'] = messageDict['Date']
+
+    # An example of for looping this information if it is phrased the same in the message Dict.
+    for key in outputDict['KeyInfo']:
+
+        # If the tag exists in the messageDict
+        if key in messageDict.items():
+
+            # Set the tag in the outputDict
+            outputDict['KeyInfo'][key] = messageDict[key]
+
+    # Make any other necessary changes to the dict and return the outputDict.
+
+    return outputDict
 
 
 ####################
