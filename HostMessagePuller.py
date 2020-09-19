@@ -455,7 +455,7 @@ def main():
 
             if line['Host'] == "Z01":
                 if line['MessageType'] == "Request":
-                    request_parser(dict_maker(map_selection_func(line['Message'])), line['Message'])
+                    normalized_dict(request_parser(dict_maker(map_selection_func(line['Message'])), line['Message']))
 
     else:
         print("Failed to connect to the IP: " + str(IP))
