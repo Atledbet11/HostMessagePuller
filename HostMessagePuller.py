@@ -453,9 +453,15 @@ def main():
         for line in lines:
             #print(str(line))
 
-            if line['Host'] == "Z01":
+            host = line['Host']
+
+            if host == "Z01":
                 if line['MessageType'] == "Request":
                     normalized_dict(request_parser(dict_maker(map_selection_func(line['Message'])), line['Message']))
+
+            if host == "RBS":
+                if line['MessageType'] == "Request":
+                    RBS_REQ_Parser(line['Message'])
 
     else:
         print("Failed to connect to the IP: " + str(IP))
